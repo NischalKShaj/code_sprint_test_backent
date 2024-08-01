@@ -1,0 +1,55 @@
+name: Deploy CodeSprint Application
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Source
+        uses: actions/checkout/@v4
+
+      - name: Login to Docker hub
+        run: docker login -u ${{secrets.DOCKER_USERNAME}} -p ${{secrets.DOCKER_PASSWORD}}
+
+      - name: Build Backend Docker Image
+        run: docker build -t nischalkshaj/code_sprint_backend .
+
+      - name: Publish Image to the docker hub
+        run: docker push nischalkshaj/code_sprint_backend:latest
+
+  deploy:
+    needs: build
+    runs-on: self-hosted
+    steps:
+      - name: Pull the image from the docker hub
+        run: docker pull nischalkshaj/code_sprint_backend:latest
+
+      - name: Stop and Remove Existing Backend Container
+        run: |
+          if [ $(docker ps -q -f name=codesprint-backend-container) ]; then
+            docker stop codesprint-backend-container
+            docker rm codesprint-backend-container
+          fi
+
+      - name: Run Backend Docker Container
+        run: |
+          docker run -d -p 4000:4000 \
+          --name codesprint-backend-container \
+          --restart unless-stopped \
+          -e NODE_ENV='production' \
+          -e MONGODB_LOCAL_URI='mongodb://localhost:27017/code_sprint' \
+          -e MONGODB_CLOUD_URI='${{ secrets.MONGODB_URI }}' \
+          -e ACCESS_KEY='${{ secrets.ACCESS_KEY }}' \
+          -e BUCKET_SECRET_KEY='${{ secrets.BUCKET_SECRET_KEY }}' \
+          -e REGION='${{ secrets.REGION }}' \
+          -e BUCKET_NAME='${{ secrets.BUCKET_NAME }}' \
+          -e SQS_QUEUE_URL='${{ secrets.SQS_QUEUE_URL }}' \
+          nischalkshaj/codesprint/backend:latest
+
+      - name: Check Logs if Backend Container Fails
+        if: failure()
+        run: docker logs codesprint-backend-container
