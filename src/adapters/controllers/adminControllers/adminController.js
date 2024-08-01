@@ -12,7 +12,7 @@ const adminController = {
       console.log("data", data);
       const result = await adminUseCase.adminLogin(data);
       if (result.success) {
-        console.log("result", result);
+        console.log("result", result.token);
         res
           .cookie("admin_access_token", result.token, { httpOnly: true })
           .status(202)
@@ -21,7 +21,7 @@ const adminController = {
         res.status(401).json(result.data);
       }
     } catch (error) {
-      console.error("error");
+      console.error("error", error); // Include error in the log
       res.status(500).json("internal server error");
     }
   },
@@ -110,10 +110,14 @@ const adminController = {
 
   // controller for admin logout
   adminLogout: (req, res) => {
-    res
-      .clearCookie("admin_access_token")
-      .status(200)
-      .json("admin logout success");
+    try {
+      res
+        .clearCookie("admin_access_token")
+        .status(200)
+        .json({ message: "admin logout success" });
+    } catch (error) {
+      console.error("error", error);
+    }
   },
 };
 
